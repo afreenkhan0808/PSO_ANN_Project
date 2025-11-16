@@ -19,14 +19,14 @@ Key ideas:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Callable, Tuple, List
+from dataclasses import dataclass # MAKES IT EASY TO STORE PARTICLES INFO 
+from typing import Callable, Tuple, List #for fitness function
 
 import numpy as np
 
 
 # Type alias: a fitness function takes a 1D position vector and returns a float.
-FitnessFn = Callable[[np.ndarray], float]
+FitnessFn = Callable[[np.ndarray], float] #takaes a vector (particle position) and returns a number indicating how good that solution is 
 
 
 @dataclass
@@ -34,10 +34,10 @@ class Particle:
     """
     Represents a single PSO particle.
     """
-    position: np.ndarray
-    velocity: np.ndarray
-    best_pos: np.ndarray
-    best_fitness: float
+    position: np.ndarray #current solution 
+    velocity: np.ndarray #current movement 
+    best_pos: np.ndarray #personal best soltuion 
+    best_fitness: float #fitness of best position 
 
 
 class PSO:
@@ -63,17 +63,17 @@ class PSO:
 
     def __init__(
         self,
-        dim: int,
-        fitness_fn: FitnessFn,
-        bounds: Tuple[float, float],
-        swarm_size: int = 30,
-        alpha: float = 0.9,   # line 2: inertia coefficient
-        beta: float = 0.1,    # line 3: cognitive coefficient
-        gamma: float = 0.1,   # line 4: social (informants) coefficient
-        delta: float = 0.0,   # line 5: global best coefficient (often 0)
-        e: float = 1.0,       # line 6: step size multiplier
-        n_informants: int = 5,
-        rng_seed: int = 0,
+        dim: int, #no of dimensions 
+        fitness_fn: FitnessFn, #fucntion to maximise 
+        bounds: Tuple[float, float], # min and max values allowed for each dimension 
+        swarm_size: int = 30, #no of particles in swarm 
+        alpha: float = 0.9,   # line 2: inertia coefficient ; keeps particles moving in same direction 
+        beta: float = 0.1,    # line 3: cognitive coefficient ; weight for perosnal best influence 
+        gamma: float = 0.1,   # line 4: social (informants) coefficient ; weight for informants influence 
+        delta: float = 0.0,   # line 5: global best coefficient (often 0) ; global best infuence 
+        e: float = 1.0,       # line 6: step size multiplier 
+        n_informants: int = 5, # no of pariticles considered as 'friends'for social learning 
+        rng_seed: int = 0, #random seed for reproducibility 
     ) -> None:
         """
         Initialise PSO swarm.
@@ -141,7 +141,7 @@ class PSO:
         for i in range(self.swarm_size):
             # Choose n_informants - 1 other distinct particles
             others = np.delete(all_indices, i)
-            k = max(0, min(self.n_informants - 1, others.size))
+            k = max(0, min(self.n_informants - 1, others.size)) #randomly pick other particles 
             chosen = self.rng.choice(others, size=k, replace=False) if k > 0 else np.array([], dtype=int)
             group = np.concatenate([[i], chosen])  # include itself
             informants_for.append(group)
@@ -152,7 +152,7 @@ class PSO:
     # Public API
     # -------------------------------------------------------------------------
 
-    def run(self, max_iter: int = 100, verbose: bool = False):
+    def run(self, max_iter: int = 100, verbose: bool = False): #loops over iterations to move particles towards better solutions 
         """
         Run PSO for max_iter iterations.
 

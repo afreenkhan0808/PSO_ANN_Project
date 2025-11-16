@@ -5,13 +5,13 @@ import pandas as pd
 
 from ann import ANN
 from pso import PSO
-from utils import mae
+from utils import mae # function to compute mean absolute error 
 
 
 # ---------------------------------------------------------
 # 1) Load dataset
 # ---------------------------------------------------------
-def load_concrete_dataset():
+def load_concrete_dataset(): # to load and prepare dataset 
     import os
     BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # go from src/ → project root
     CSV_PATH = os.path.join(BASE_DIR, "data", "concrete_data.csv")
@@ -21,7 +21,7 @@ def load_concrete_dataset():
     X = df.iloc[:, :-1].values.astype(float)   # first 8 columns
     y = df.iloc[:, -1].values.astype(float).reshape(-1, 1)  # last column
 
-    # Shuffle
+    # Shuffle dataset randomly to mix the samples
     rng = np.random.default_rng(42)
     indices = rng.permutation(len(X))
     X = X[indices]
@@ -38,9 +38,8 @@ def load_concrete_dataset():
     X_train_norm = (X_train - X_mean) / X_std
     X_test_norm = (X_test - X_mean) / X_std
 
-    # For regression you can either normalise y or keep as-is.
-    # Let’s keep y unscaled (easier interpretability).
-    return X_train_norm, X_test_norm, y_train, y_test
+   #kept y unscaled 
+    return X_train_norm, X_test_norm, y_train, y_test #return prepared data 
 
 
 # ---------------------------------------------------------
@@ -48,12 +47,12 @@ def load_concrete_dataset():
 # ---------------------------------------------------------
 def make_fitness_fn(ann, X_train, y_train):
     def fitness_fn(weight_vector):
-        ann.set_param_vector(weight_vector)
-        preds = ann.forward(X_train)
+        ann.set_param_vector(weight_vector) #encoded as a 1D vector nad updates ANN with particles weight vector 
+        preds = ann.forward(X_train) # get ann predictions 
 
         # Compute MAE (smaller is better),
         # but PSO maximises fitness → return negative MAE.
-        return -mae(y_train, preds)
+        return -mae(y_train, preds) 
     return fitness_fn
 
 
@@ -77,7 +76,7 @@ def main():
     # Build fitness function for PSO
     fitness_fn = make_fitness_fn(ann, X_train, y_train)
 
-    # PSO bounds for weights (you can tune this later)
+    # PSO bounds for weights 
     bounds = (-1.0, 1.0)
 
     # Create PSO instance
@@ -87,14 +86,14 @@ def main():
         bounds=bounds,
         swarm_size=30,
         alpha=0.9,
-        beta=0.1,
-        gamma=0.1,
-        delta=0.0,
+        beta=0.1, #personal best 
+        gamma=0.1, #informants 
+        delta=0.0, #global
         e=1.0,
         n_informants=5,
         rng_seed=123,
     )
-
+    #run PSO 50x, reutrn best weights, best trainging fitness, and hsitpry of fitness per iteration 
     print("Running PSO optimisation...")
     best_vec, best_fit, history = pso.run(max_iter=50, verbose=True)
 
