@@ -3,23 +3,23 @@ import numpy as np
 class ANN:
     def __init__(self, layer_sizes, activations):
         """
-        layer_sizes = [input_dim, h1, h2, ..., output_dim]
-        activations = ["relu", "tanh", "sigmoid", ...]  # one per hidden layer
+        layer_sizes: [input_dim, h1, h2, ..., output_dim]
+        activations: list of activation names, one per HIDDEN layer
+                     e.g. ["relu", "tanh"] (output layer is always linear)
         """
         self.layer_sizes = layer_sizes
         self.activations = activations
 
-        # Create weight shapes
+        # Weight and bias shapes
         self.weight_shapes = []
         for i in range(len(layer_sizes) - 1):
             in_size = layer_sizes[i]
             out_size = layer_sizes[i + 1]
             self.weight_shapes.append((in_size, out_size))
-        
-        # Create bias shapes
+
         self.bias_shapes = [(1, size) for size in layer_sizes[1:]]
 
-        # Placeholder for actual weights (PSO will set these)
+        # Weights/biases placeholders (set later by PSO)
         self.weights = None
         self.biases = None
 
@@ -39,32 +39,9 @@ class ANN:
             raise ValueError(f"Unknown activation: {name}")
 
     # -------------------------------------------------------------
-    # Set weights (PSO provides the vector)
+    # Required by PSO: return total number of parameters
     # -------------------------------------------------------------
-    def set_weights_from_vector(self, vector):
-        """Convert 1D vector from PSO into weight matrices + bias vectors."""
-        idx = 0
-        self.weights = []
-        self.biases = []
-
-        # Unflatten weights
-        for shape in self.weight_shapes:
-            size = shape[0] * shape[1]
-            w = vector[idx:idx+size].reshape(shape)
-            self.weights.append(w)
-            idx += size
-
-        # Unflatten biases
-        for shape in self.bias_shapes:
-            size = shape[1]
-            b = vector[idx:idx+size].reshape(shape)
-            self.biases.append(b)
-            idx += size
-
-    # -------------------------------------------------------------
-    # Flatten weights (used when creating the initial PSO particle)
-    # -------------------------------------------------------------
-    def get_weights_vector_length(self):
+    def num_params(self):
         total = 0
         for shape in self.weight_shapes:
             total += shape[0] * shape[1]
@@ -73,7 +50,30 @@ class ANN:
         return total
 
     # -------------------------------------------------------------
-    # Forward pass through the network
+    # Required by PSO: set weights from a flat vector
+    # -------------------------------------------------------------
+    def set_param_vector(self, vector):
+        """
+        Convert a 1D vector (from PSO) into all weight matrices + bias vectors.
+        """
+        idx = 0
+        self.weights = []
+        self.biases = []
+
+        for shape in self.weight_shapes:
+            size = shape[0] * shape[1]
+            w = vector[idx:idx + size].reshape(shape)
+            self.weights.append(w)
+            idx += size
+
+        for shape in self.bias_shapes:
+            size = shape[1]
+            b = vector[idx:idx + size].reshape(shape)
+            self.biases.append(b)
+            idx += size
+
+    # -------------------------------------------------------------
+    # Forward pass
     # -------------------------------------------------------------
     def forward(self, X):
         a = X
@@ -82,7 +82,7 @@ class ANN:
         for i in range(L):
             z = np.dot(a, self.weights[i]) + self.biases[i]
 
-            # Last layer = linear activation for regression
+            # Last layer must be linear for regression
             if i == L - 1:
                 a = self.activation(z, "linear")
             else:
