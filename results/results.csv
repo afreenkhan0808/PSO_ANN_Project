@@ -1,0 +1,10 @@
+Architecture,Activation,Train MAE,Test MAE,Convergence Plot
+shallow,relu,17.766490886634458,17.95194767013865,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/shallow_relu_convergence.png
+shallow,tanh,29.342529864622453,29.987217808884946,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/shallow_tanh_convergence.png
+shallow,sigmoid,23.834878034230623,24.623781255693977,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/shallow_sigmoid_convergence.png
+medium,relu,10.580142306603852,9.649656844134817,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/medium_relu_convergence.png
+medium,tanh,26.41741559535924,27.189204479589264,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/medium_tanh_convergence.png
+medium,sigmoid,23.912681751450606,24.584203973123454,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/medium_sigmoid_convergence.png
+deep,relu,11.076671242755584,10.264536758709013,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/deep_relu_convergence.png
+deep,tanh,29.150396072075083,29.824334048443713,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/deep_tanh_convergence.png
+deep,sigmoid,28.614405542678696,29.360804228614377,/Users/afreen/Desktop/PSO_ANN_Project/results/plots/deep_sigmoid_convergence.png

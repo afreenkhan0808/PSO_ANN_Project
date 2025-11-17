@@ -1,155 +1,169 @@
+# src/run_experiments.py
+
+import os
 import numpy as np
 import pandas as pd
-import os
-from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from ann import ANN
 from pso import PSO
 from utils import mae
+from main import load_concrete_dataset   # reuse your loader
 
 
 # ---------------------------------------------------------
-# Load dataset (same code as main.py, re-used here)
+# EXPERIMENT CONFIGURATIONS
 # ---------------------------------------------------------
-def load_concrete_dataset():
-    BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-    CSV_PATH = os.path.join(BASE_DIR, "data", "concrete_data.csv")
+"""architectures = {
+    "shallow":  ([8, 8, 1], ["relu"]),                # 1 hidden layer
+    "medium":   ([8, 16, 8, 1], ["relu", "relu"]),    # 2 hidden layers
+    "deep":     ([8, 16, 16, 8, 1], ["relu", "relu", "relu"]),  # 3 hidden layers
+}
+activation_functions = ["relu", "tanh", "sigmoid"]
+"""
+architectures = {
+    "shallow": ([8, 20, 1], ["relu"]),
+    "medium":  ([8, 32, 16, 1], ["relu", "relu"]),
+    "deep":    ([8, 32, 16, 8, 1], ["relu", "relu", "relu"]),
+}
 
-    df = pd.read_csv(CSV_PATH)
 
-    X = df.iloc[:, :-1].values.astype(float) #splitting data into features x and target y 
-    y = df.iloc[:, -1].values.astype(float).reshape(-1, 1)
+activation_functions = ["relu", "tanh", "sigmoid"]
 
-    rng = np.random.default_rng(42) #shuffles data randomly 
-    indices = rng.permutation(len(X))
-    X = X[indices]
-    y = y[indices]
 
-    n_train = int(0.7 * len(X)) #splits into 70% training and 30% test 
-    X_train, X_test = X[:n_train], X[n_train:]
-    y_train, y_test = y[:n_train], y[n_train:]
+# Ensure folders exist
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "results")
+PLOTS_DIR = os.path.join(RESULTS_DIR, "plots")
 
-    X_mean = X_train.mean(axis=0) #normalising features to zero mean 
-    X_std = X_train.std(axis=0) + 1e-8 #unit variance 
-
-    X_train_norm = (X_train - X_mean) / X_std
-    X_test_norm = (X_test - X_mean) / X_std
-
-    return X_train_norm, X_test_norm, y_train, y_test #return normalized training and test data 
+os.makedirs(RESULTS_DIR, exist_ok=True)
+os.makedirs(PLOTS_DIR, exist_ok=True)
 
 
 # ---------------------------------------------------------
-# Fitness function generator
+# RUN SINGLE EXPERIMENT
 # ---------------------------------------------------------
-def make_fitness_fn(ann, X_train, y_train): #wraps the ann evalutation in a fuction PSO can optimize 
+def run_single_experiment(arch_name, layer_sizes, base_activations, act_fn, X_train, y_train, X_test, y_test):
+    """
+    Runs one experiment: specific architecture + activation function.
+    Returns final train MAE, test MAE, and PSO history.
+    """
+
+    # Replace all hidden layer activations with chosen act_fn
+    activations = [act_fn] * (len(layer_sizes) - 2)   # hidden layers only
+
+    # Build model
+    ann = ANN(layer_sizes, activations)
+    dim = ann.num_params()
+
+    # Build PSO fitness function
     def fitness_fn(vec):
-        ann.set_param_vector(vec) #takes a weight vector from PSO, set ANN parameters
-        preds = ann.forward(X_train) #predicts output
-        return -mae(y_train, preds) #return negative MAE bc PSO maximies fitness 
-    return fitness_fn
+        ann.set_param_vector(vec)
+        preds = ann.forward(X_train)
+        return -mae(y_train, preds)
+
+# WE CHANGED OUR PARAMS TO MAKE MAE AND RESULTS BETTER.. 
+    """# PSO definition
+    bounds = (-1.0, 1.0)
+    pso = PSO(
+        dim=dim,
+        fitness_fn=fitness_fn,
+        bounds=bounds,
+        swarm_size=30,
+        alpha=0.9,
+        beta=0.1,
+        gamma=0.1,
+        delta=0.0,
+        e=1.0,
+        n_informants=5,
+        rng_seed=123,
+    ) """
+
+    pso = PSO(
+    dim=dim,
+    fitness_fn=fitness_fn,
+    bounds=(-1, 1),
+    swarm_size=50,      # increased from 30 → 50
+    alpha=0.7,          # lower inertia (was 0.9)
+    beta=0.3,           # stronger personal influence (was 0.1)
+    gamma=0.3,          # stronger informants influence (was 0.1)
+    delta=0.1,          # small global influence (was 0.0)
+    e=1.0,
+    n_informants=7,     # more informants (was 5)
+    rng_seed=123,
+)
+
+    # Run optimisation
+    # best_vec, best_fit, history = pso.run(max_iter=50, verbose=False)
+
+    best_vec, best_fit, history = pso.run(max_iter=150, verbose=False)
+
+
+    # Evaluate on test set
+    ann.set_param_vector(best_vec)
+    test_preds = ann.forward(X_test)
+    test_mae = mae(y_test, test_preds)
+
+    return -best_fit, test_mae, history  # convert train fitness → MAE
 
 
 # ---------------------------------------------------------
-# Experiment configurations
-# ---------------------------------------------------------
-
-ANN_ARCHITECTURES = [
-    ([8, 8, 1], ["relu"]),                  # simple
-    ([8, 16, 8, 1], ["relu", "relu"]),      # medium our default 
-    ([8, 32, 16, 8, 1], ["relu", "relu", "relu"]),  # deeper
-]
-
-PSO_SETTINGS = [
-    # swarm_size, iterations, alpha, beta, gamma
-    (10,  50, 0.9, 0.1, 0.1),
-    (25,  20, 0.9, 0.1, 0.1),
-    (50,  10, 0.9, 0.1, 0.1),
-
-    # coefficient variations
-    (30, 50, 0.7, 0.3, 0.1),
-    (30, 50, 0.7, 0.1, 0.2),
-]
-
-
-# ---------------------------------------------------------
-# Run a single experiment configuration (10 runs)
-# ---------------------------------------------------------
-def run_single_configuration(layer_sizes, activations, swarm, iters, alpha, beta, gamma):
-    X_train, X_test, y_train, y_test = load_concrete_dataset()
-
-    test_maes = [] #list to store MAES from 10 runs 
-
-    for seed in range(10):   # rpeating ten times for different seeds , getting avg performance 
-        ann = ANN(layer_sizes, activations) #initialising ann and its functions 
-        dim = ann.num_params()
-        fitness_fn = make_fitness_fn(ann, X_train, y_train)
-
-        pso = PSO( #initilise PSO with given configuration and reurtn BESS ANN WEIGHTS 
-            dim=dim,
-            fitness_fn=fitness_fn,
-            bounds=(-1, 1),
-            swarm_size=swarm,
-            alpha=alpha,
-            beta=beta,
-            gamma=gamma,
-            delta=0.0,
-            e=1.0,
-            n_informants=5,
-            rng_seed=seed,
-        )
-
-        best_vec, best_fit, history = pso.run(max_iter=iters, verbose=False)
-
-        # Evaluate on test set and store MAE for this run 
-        ann.set_param_vector(best_vec)
-        preds = ann.forward(X_test)
-        test_mae = mae(y_test, preds)
-
-        test_maes.append(test_mae)
-
-    return np.mean(test_maes), np.std(test_maes) #return mean and standard dev of 10 runs 
-
-
-# ---------------------------------------------------------
-# MAIN: Run all experiments + save results
+# MAIN EXPERIMENT LOOP
 # ---------------------------------------------------------
 def main():
-    print("Running experiments...")
 
-    results = [] #list to save all results 
+    print("Loading dataset...")
+    X_train, X_test, y_train, y_test = load_concrete_dataset()
 
-    for (layer_sizes, activations) in ANN_ARCHITECTURES: #nested loop to try all combinations of ANN and PSO 
-        for (swarm, iters, alpha, beta, gamma) in PSO_SETTINGS:
+    results = []
 
-            print(f"\nTesting ANN={layer_sizes}, PSO=[swarm={swarm}, iters={iters}, "
-                  f"alpha={alpha}, beta={beta}, gamma={gamma}]")
+    print("\nRunning full experiment grid...\n")
 
-            mean_mae, std_mae = run_single_configuration(
-                layer_sizes, activations,
-                swarm, iters, alpha, beta, gamma
-            ) #run 10 repetions for this configuration 
+    for arch_name, (layer_sizes, base_acts) in architectures.items():
+        for act_fn in activation_functions:
 
+            print(f"→ Running {arch_name.upper()} with {act_fn.upper()} activation...")
+
+            train_mae, test_mae, history = run_single_experiment(
+                arch_name,
+                layer_sizes,
+                base_acts,
+                act_fn,
+                X_train,
+                y_train,
+                X_test,
+                y_test
+            )
+
+            # Save plot of convergence curve
+            plt.figure(figsize=(6, 4))
+            plt.plot(history)
+            plt.xlabel("Iteration")
+            plt.ylabel("Best Fitness (Negative MAE)")
+            plt.title(f"PSO Convergence — {arch_name} — {act_fn}")
+            plt.grid(True)
+
+            plot_path = os.path.join(PLOTS_DIR, f"{arch_name}_{act_fn}_convergence.png")
+            plt.savefig(plot_path, dpi=150)
+            plt.close()
+
+            # Store results
             results.append({
-                "ANN": str(layer_sizes),
-                "Activations": str(activations),
-                "Swarm": swarm,
-                "Iterations": iters,
-                "Alpha": alpha,
-                "Beta": beta,
-                "Gamma": gamma,
-                "Mean_Test_MAE": round(mean_mae, 4),
-                "Std_Test_MAE": round(std_mae, 4),
+                "Architecture": arch_name,
+                "Activation": act_fn,
+                "Train MAE": train_mae,
+                "Test MAE": test_mae,
+                "Convergence Plot": plot_path,
             })
 
-            print(f"Mean Test MAE = {mean_mae:.4f}, Std = {std_mae:.4f}")
-
-    # Save results
-    out_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "experiments", "results.csv")
+    # Save results to CSV
     df = pd.DataFrame(results)
-    df.to_csv(out_path, index=False)
+    csv_path = os.path.join(RESULTS_DIR, "results.csv")
+    df.to_csv(csv_path, index=False)
 
-    print("\n\nAll experiments completed.")
-    print(f"Results saved to: {out_path}")
+    print("\nAll experiments completed!")
+    print("Results saved to:", csv_path)
+    print("\nSummary:\n")
+    print(df)
 
 
 if __name__ == "__main__":
